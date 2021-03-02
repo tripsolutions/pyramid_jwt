@@ -127,6 +127,7 @@ def set_jwt_cookie_authentication_policy(
         auth_policy,
         cookie_name=cookie_name,
         https_only=https_only,
+        samesite=samesite
         reissue_time=reissue_time,
         cookie_path=cookie_path,
     )
