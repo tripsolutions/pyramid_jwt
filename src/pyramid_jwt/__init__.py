@@ -94,6 +94,7 @@ def set_jwt_cookie_authentication_policy(
     audience=None,
     cookie_name=None,
     https_only=None,
+    samesite=None,
     reissue_time=None,
     cookie_path=None,
 ):
@@ -105,6 +106,8 @@ def set_jwt_cookie_authentication_policy(
         https_only = settings.get("jwt.https_only_cookie", True)
     if type(https_only) is str:
         https_only = https_only.lower() == "true"
+    if samesite is None:
+        samesite = settings.get("jwt.samesite", None)
 
     auth_policy = create_jwt_authentication_policy(
         config,
