@@ -104,7 +104,7 @@ def set_jwt_cookie_authentication_policy(
     if https_only is None:
         https_only = settings.get("jwt.https_only_cookie", True)
     if type(https_only) is str:
-        https_only = https_only.lower()=='true'
+        https_only = https_only.lower() == "true"
 
     auth_policy = create_jwt_authentication_policy(
         config,
