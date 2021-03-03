@@ -176,6 +176,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         cookie_path=None,
         accept_header=False,
         header_first=False,
+        reissue_callback=None,
     ):
         super(JWTCookieAuthenticationPolicy, self).__init__(
             private_key,
@@ -201,6 +202,13 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         self.reissue_time = int(reissue_time) if reissue_time is not None else None
         self.accept_header = asbool(accept_header)
         self.header_first = asbool(header_first)
+
+        def _default_reissue_callback(request, principal, **claims):
+            return self.create_token(
+                principal, self.expiration, self.audience, **claims
+            )
+
+        self.reissue_callback = reissue_callback or _default_reissue_callback
 
         self.cookie_profile = CookieProfile(
             cookie_name=self.cookie_name,
@@ -244,15 +252,13 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         headers = profile.get_headers(value, **kw)
         return headers
 
-    def remember(self, request, principal, **kw):
-        token = self.create_token(principal, self.expiration, self.audience, **kw)
-
+    def remember(self, request, token, **kw):
         if hasattr(request, "_jwt_cookie_reissued"):
             request._jwt_cookie_reissue_revoked = True
 
-        domains = kw.get("domains")
-
-        return self._get_cookies(request, token, self.max_age, domains=domains)
+        return self._get_cookies(
+            request, token, self.max_age, domains=kw.get("domains")
+        )
 
     def forget(self, request):
         request._jwt_cookie_reissue_revoked = True
@@ -297,15 +303,17 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
             # Token not yet eligible for reissuing
             return
 
-        extra_claims = dict(
-            filter(lambda item: item[0] not in self.jwt_std_claims, claims.items())
-        )
-        headers = self.remember(request, principal, **extra_claims)
+        try:
+            token = self.reissue_callback(request, principal, **claims)
+        except Exception as e:
+            raise ReissueError("Callback raised exception") from e
 
         def reissue_jwt_cookie(request, response):
             if not hasattr(request, "_jwt_cookie_reissue_revoked"):
                 for k, v in headers:
                     response.headerlist.append((k, v))
 
-        request.add_response_callback(reissue_jwt_cookie)
-        request._jwt_cookie_reissued = True
+        if token:
+            headers = self.remember(request, token)
+            request.add_response_callback(reissue_jwt_cookie)
+            request._jwt_cookie_reissued = True

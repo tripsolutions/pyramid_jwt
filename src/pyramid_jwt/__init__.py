@@ -81,6 +81,7 @@ def create_jwt_cookie_authentication_policy(
     cookie_path=None,
     accept_header=None,
     header_first=None,
+    reissue_callback=None,
 ):
     settings = config.get_settings()
     cookie_name = cookie_name or settings.get("jwt.cookie_name")
@@ -118,6 +119,7 @@ def create_jwt_cookie_authentication_policy(
         cookie_path=cookie_path,
         accept_header=accept_header,
         header_first=header_first,
+        reissue_callback=reissue_callback,
     )
 
 
@@ -156,6 +158,7 @@ def set_jwt_cookie_authentication_policy(
     cookie_path=None,
     accept_header=None,
     header_first=None,
+    reissue_callback=None,
 ):
     policy = create_jwt_cookie_authentication_policy(
         config,
@@ -176,6 +179,7 @@ def set_jwt_cookie_authentication_policy(
         cookie_path,
         accept_header,
         header_first,
+        reissue_callback,
     )
     configure_jwt_authentication_policy(config, policy)
 
