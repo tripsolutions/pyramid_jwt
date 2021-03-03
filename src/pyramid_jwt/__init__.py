@@ -8,7 +8,9 @@ from .policy import (
 def includeme(config):
     json_encoder_factory.registry = config.registry
     config.add_directive(
-        "set_jwt_authentication_policy", set_jwt_authentication_policy, action_wrap=True
+        "set_jwt_authentication_policy",
+        set_jwt_authentication_policy,
+        action_wrap=True,
     )
     config.add_directive(
         "set_jwt_cookie_authentication_policy",
@@ -60,27 +62,7 @@ def create_jwt_authentication_policy(
     )
 
 
-def _request_create_token(request, principal, expiration=None, audience=None, **claims):
-
-    return request.authentication_policy.create_token(
-        principal, expiration, audience, **claims
-    )
-
-
-def _request_claims(request):
-    return request.authentication_policy.get_claims(request)
-
-
-def _configure(config, auth_policy):
-    config.set_authentication_policy(auth_policy)
-    config.add_request_method(
-        lambda request: auth_policy, "authentication_policy", reify=True
-    )
-    config.add_request_method(_request_claims, "jwt_claims", reify=True)
-    config.add_request_method(_request_create_token, "create_jwt_token")
-
-
-def set_jwt_cookie_authentication_policy(
+def create_jwt_cookie_authentication_policy(
     config,
     private_key=None,
     public_key=None,
@@ -127,16 +109,75 @@ def set_jwt_cookie_authentication_policy(
         audience,
     )
 
-    auth_policy = JWTCookieAuthenticationPolicy.make_from(
+    return JWTCookieAuthenticationPolicy.make_from(
         auth_policy,
         cookie_name=cookie_name,
         https_only=https_only,
-        reissue_time=reissue_time,
         samesite=samesite,
+        reissue_time=reissue_time,
         cookie_path=cookie_path,
+        accept_header=accept_header,
+        header_first=header_first,
     )
 
-    _configure(config, auth_policy)
+
+def configure_jwt_authentication_policy(config, auth_policy, register=True):
+    def _request_create_token(
+        request, principal, expiration=None, audience=None, **claims
+    ):
+        return auth_policy.create_token(principal, expiration, audience, **claims)
+
+    def _request_claims(request):
+        return auth_policy.get_claims(request)
+
+    config.add_request_method(_request_claims, "jwt_claims", reify=True)
+    config.add_request_method(_request_create_token, "create_jwt_token")
+
+    if register:
+        config.set_authentication_policy(auth_policy)
+
+
+def set_jwt_cookie_authentication_policy(
+    config,
+    private_key=None,
+    public_key=None,
+    algorithm=None,
+    expiration=None,
+    leeway=None,
+    http_header=None,
+    auth_type=None,
+    callback=None,
+    json_encoder=None,
+    audience=None,
+    cookie_name=None,
+    https_only=None,
+    samesite=None,
+    reissue_time=None,
+    cookie_path=None,
+    accept_header=None,
+    header_first=None,
+):
+    policy = create_jwt_cookie_authentication_policy(
+        config,
+        private_key,
+        public_key,
+        algorithm,
+        expiration,
+        leeway,
+        http_header,
+        auth_type,
+        callback,
+        json_encoder,
+        audience,
+        cookie_name,
+        https_only,
+        samesite,
+        reissue_time,
+        cookie_path,
+        accept_header,
+        header_first,
+    )
+    configure_jwt_authentication_policy(config, policy)
 
 
 def set_jwt_authentication_policy(
@@ -166,4 +207,4 @@ def set_jwt_authentication_policy(
         audience,
     )
 
-    _configure(config, policy)
+    configure_jwt_authentication_policy(config, policy)
