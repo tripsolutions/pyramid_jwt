@@ -196,7 +196,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
             reissue_time = reissue_time.total_seconds()
         self.reissue_time = reissue_time
 
-        def _default_reissue_callback(request, principal, **claims):
+        def _default_reissue_callback(request, principal, token, **claims):
             return self.create_token(
                 principal, self.expiration, self.audience, **claims
             )
@@ -268,10 +268,10 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         claims = self.jwt_decode(request, cookie)
 
         if reissue and not hasattr(request, "_jwt_cookie_reissued"):
-            self._handle_reissue(request, claims)
+            self._handle_reissue(request, claims, cookie)
         return claims
 
-    def _handle_reissue(self, request, claims):
+    def _handle_reissue(self, request, claims, token):
         if not request or not claims:
             raise ValueError("Cannot handle JWT reissue: insufficient arguments")
 
@@ -289,7 +289,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
             return
 
         try:
-            token = self.reissue_callback(request, principal, **claims)
+            token = self.reissue_callback(request, principal, token, **claims)
         except Exception as e:
             raise ReissueError("Callback raised exception") from e
 
