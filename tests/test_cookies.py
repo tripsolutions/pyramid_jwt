@@ -14,16 +14,12 @@ def principal():
     return str(uuid.uuid4())
 
 
-@pytest.fixture(scope="module")
-def dummy_request():
-    return Request.blank("/")
-
-
 def test_interface():
     verifyObject(IAuthenticationPolicy, JWTCookieAuthenticationPolicy("secret"))
 
 
-def test_cookie(dummy_request, principal):
+def test_cookie(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret")
     token = policy.create_token(principal)
     cookie = policy.remember(dummy_request, token).pop()
@@ -35,7 +31,8 @@ def test_cookie(dummy_request, principal):
     assert len(cookie) > 0
 
 
-def test_cookie_name(dummy_request, principal):
+def test_cookie_name(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", cookie_name="auth")
     token = policy.create_token(principal)
     _, cookie = policy.remember(dummy_request, token).pop()
@@ -54,7 +51,8 @@ def test_secure_cookie():
     assert "; HttpOnly" in cookie
 
 
-def test_insecure_cookie(dummy_request, principal):
+def test_insecure_cookie(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", https_only=False)
     token = policy.create_token(principal)
     _, cookie = policy.remember(dummy_request, token).pop()
@@ -63,7 +61,8 @@ def test_insecure_cookie(dummy_request, principal):
     assert "; HttpOnly" in cookie
 
 
-def test_cookie_decode(dummy_request, principal):
+def test_cookie_decode(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", https_only=False)
 
     token = policy.create_token(principal)
@@ -77,7 +76,8 @@ def test_cookie_decode(dummy_request, principal):
     assert claims["sub"] == principal
 
 
-def test_invalid_cookie_reissue(dummy_request, principal):
+def test_invalid_cookie_reissue(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", https_only=False, reissue_time=10)
 
     token = "invalid value"
@@ -91,7 +91,8 @@ def test_invalid_cookie_reissue(dummy_request, principal):
     assert not claims
 
 
-def test_cookie_max_age(dummy_request, principal):
+def test_cookie_max_age(principal):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", cookie_name="auth", expiration=100)
     _, cookie = policy.remember(dummy_request, principal).pop()
     _, value = cookie.split("=", 1)
@@ -102,7 +103,8 @@ def test_cookie_max_age(dummy_request, principal):
 
 
 @pytest.mark.freeze_time
-def test_expired_token(dummy_request, principal, freezer):
+def test_expired_token(principal, freezer):
+    dummy_request = Request.blank("/")
     policy = JWTCookieAuthenticationPolicy("secret", cookie_name="auth", expiration=1)
     token = policy.create_token(principal)
     _, cookie = policy.remember(dummy_request, token).pop()

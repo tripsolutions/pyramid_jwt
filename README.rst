@@ -452,7 +452,7 @@ re-issued. The callback signature is:
 
 .. code-block:: python
 
-    def reissue_callback(request, principal, token, **claims):
+    def reissue_callback(request, principal, **claims):
         pass
 
 and should return a newly constructed JWT token. When not provided a callback
@@ -460,7 +460,7 @@ the default behaviour is equivalent to the following:
 
 .. code-block:: python
 
-    def reissue_callback(request, principal, token, **claims):
+    def reissue_callback(request, principal, **claims):
         return request.create_jwt_token(principal, **claims)
 
 Providing a reissue callback is useful in two cases:

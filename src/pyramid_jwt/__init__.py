@@ -132,7 +132,11 @@ def configure_jwt_authentication_policy(config, auth_policy, register=True):
     def _request_claims(request):
         return auth_policy.get_claims(request)
 
+    def _request_token(request):
+        return auth_policy.get_token(request)
+
     config.add_request_method(_request_claims, "jwt_claims", reify=True)
+    config.add_request_method(_request_token, "jwt_token", reify=True)
     config.add_request_method(_request_create_token, "create_jwt_token")
 
     if register:

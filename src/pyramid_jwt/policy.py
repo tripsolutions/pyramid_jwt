@@ -100,18 +100,22 @@ class JWTAuthenticationPolicy(CallbackAuthenticationPolicy):
             token = token.decode("ascii")
         return token
 
-    def get_claims(self, request):
+    def get_token(self, request):
         if self.http_header == "Authorization":
             try:
                 if request.authorization is None:
-                    return {}
+                    return None
             except ValueError:  # Invalid Authorization header
                 return {}
             (auth_type, token) = request.authorization
             if auth_type != self.auth_type:
-                return {}
+                return None
+            return token
         else:
-            token = request.headers.get(self.http_header)
+            return request.headers.get(self.http_header)
+
+    def get_claims(self, request):
+        token = self.get_token(request)
         if not token:
             return {}
         return self.jwt_decode(request, token)
@@ -203,7 +207,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         self.accept_header = asbool(accept_header)
         self.header_first = asbool(header_first)
 
-        def _default_reissue_callback(request, principal, token, **claims):
+        def _default_reissue_callback(request, principal, **claims):
             return self.create_token(
                 principal, self.expiration, self.audience, **claims
             )
@@ -253,7 +257,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         return headers
 
     def remember(self, request, token, **kw):
-        if hasattr(request, "_jwt_cookie_reissued"):
+        if hasattr(request, "_jwt_cookie_reissued") and request._jwt_cookie_reissued:
             request._jwt_cookie_reissue_revoked = True
 
         return self._get_cookies(
@@ -264,33 +268,43 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
         request._jwt_cookie_reissue_revoked = True
         return self._get_cookies(request, None)
 
-    def get_claims(self, request):
+    def get_token(self, request):
         if self.accept_header:
-            if self.header_first:
-                return super().get_claims(request) or self.get_cookie_claims(request)
-            return self.get_cookie_claims(request) or super().get_claims(request)
-        return self.get_cookie_claims(request)
+            token = super().get_token(request)
+            if token and self.header_first:
+                return token
 
-    def get_cookie_claims(self, request):
         profile = self.cookie_profile.bind(request)
         cookie = profile.get_value()
 
-        reissue = self.reissue_time is not None
+        if not cookie and self.accept_header:
+            return token
 
-        if cookie is None:
-            return {}
+        # if we handle reissue at this early stage we avoid reissuing cookies
+        # on requests that used header authentication
+        if (
+            cookie
+            and self.reissue_time is not None
+            and not hasattr(request, "_jwt_cookie_reissued")
+        ):
+            claims = self._internal_jwt_claims(request, cookie)
+            if claims:
+                self._handle_reissue(request, claims)
 
-        claims = self.jwt_decode(request, cookie)
+        return cookie
 
-        # bypass reissue if cookie was invalid
-        if not claims:
-            return {}
+    # store claims in request to avoid decoding twice in reissue_callback
+    def _internal_jwt_claims(self, request, token):
+        if not hasattr(request, "_internal_jwt_claims"):
+            request._internal_jwt_claims = self.jwt_decode(request, token)
+        return request._internal_jwt_claims
 
-        if reissue and not hasattr(request, "_jwt_cookie_reissued"):
-            self._handle_reissue(request, claims, cookie)
-        return claims
+    # redefined get_claims to use internally stored claims
+    def get_claims(self, request):
+        token = self.get_token(request)
+        return self._internal_jwt_claims(request, token)
 
-    def _handle_reissue(self, request, claims, token):
+    def _handle_reissue(self, request, claims):
         if not request or not claims:
             raise ValueError("Cannot handle JWT reissue: insufficient arguments")
 
@@ -298,6 +312,9 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
             raise ReissueError("Token claim's is missing IAT")
         if "sub" not in claims:
             raise ReissueError("Token claim's is missing SUB")
+
+        # avoid getting called again from reissue_callback via get_token() or get_claims()
+        request._jwt_cookie_reissued = False
 
         token_dt = claims["iat"]
         principal = claims["sub"]
@@ -308,7 +325,7 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
             return
 
         try:
-            token = self.reissue_callback(request, principal, token, **claims)
+            token = self.reissue_callback(request, principal, **claims)
         except Exception as e:
             raise ReissueError("Callback raised exception") from e
 
