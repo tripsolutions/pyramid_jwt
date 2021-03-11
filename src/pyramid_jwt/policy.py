@@ -302,6 +302,8 @@ class JWTCookieAuthenticationPolicy(JWTAuthenticationPolicy):
     # redefined get_claims to use internally stored claims
     def get_claims(self, request):
         token = self.get_token(request)
+        if not token:
+            return {}
         return self._internal_jwt_claims(request, token)
 
     def _handle_reissue(self, request, claims):
